@@ -1,29 +1,30 @@
-# Your current Flask code from the canvas goes here...
 import requests
 import json
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
+# Replace with your actual Google Maps API Key
 GOOGLE_API_KEY = 'your_google_maps_api_key'
-YELP_API_KEY = 'your_yelp_api_key'
-
-headers = {
-    'Authorization': f'Bearer {YELP_API_KEY}'
-}
 
 app = Flask(__name__)
 CORS(app)
 
+# Get directions from Google Maps Directions API
 def get_route(start, end):
     url = f"https://maps.googleapis.com/maps/api/directions/json?origin={start}&destination={end}&key={GOOGLE_API_KEY}"
     response = requests.get(url)
     return response.json()
 
-def find_stops_along_route(location, term):
-    url = f"https://api.yelp.com/v3/businesses/search?location={location}&term={term}&sort_by=rating&limit=3"
-    response = requests.get(url, headers=headers)
+# Get places near a specific location using Google Places API
+def find_places_near_location(lat, lng, keyword):
+    url = (
+        f"https://maps.googleapis.com/maps/api/place/nearbysearch/json?"
+        f"location={lat},{lng}&radius=1500&keyword={keyword}&key={GOOGLE_API_KEY}"
+    )
+    response = requests.get(url)
     return response.json()
 
+# Build a route plan with top-rated stops
 def plan_route_with_live_data(start, end):
     directions = get_route(start, end)
     if directions['status'] != 'OK':
@@ -34,19 +35,18 @@ def plan_route_with_live_data(start, end):
         for step in leg['steps']:
             lat = step['end_location']['lat']
             lng = step['end_location']['lng']
-            location = f"{lat},{lng}"
 
-            cafes = find_stops_along_route(location, 'artisanal coffee')
-            restrooms = find_stops_along_route(location, 'clean restrooms')
-            rest_areas = find_stops_along_route(location, 'highly rated rest area')
-            gas_stations = find_stops_along_route(location, 'gas station')
+            cafes = find_places_near_location(lat, lng, 'artisanal coffee')
+            restrooms = find_places_near_location(lat, lng, 'public restroom with baby station')
+            rest_areas = find_places_near_location(lat, lng, 'highly rated rest area')
+            gas_stations = find_places_near_location(lat, lng, 'gas station')
 
             stops.append({
-                'location': location,
-                'cafes': cafes.get('businesses', []),
-                'restrooms': restrooms.get('businesses', []),
-                'rest_areas': rest_areas.get('businesses', []),
-                'gas_stations': gas_stations.get('businesses', [])
+                'location': f"{lat},{lng}",
+                'cafes': cafes.get('results', []),
+                'restrooms': restrooms.get('results', []),
+                'rest_areas': rest_areas.get('results', []),
+                'gas_stations': gas_stations.get('results', [])
             })
 
     return stops
